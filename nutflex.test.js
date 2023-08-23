@@ -1,20 +1,20 @@
 // custom command imports
 const { default: puppeteer } = require("puppeteer");
 const {
-  getRandomIntIncl,
   selectNdaysFromToday,
   clickPageElement,
   selectRandomSeat,
   selectRandomHallByType,
+  checkIfElemtIsVisible, // добавлена для нового Sad Path
 } = require("./lib/custom_commands.js");
 
 const { KnownDevices } = require("puppeteer");
+// const { expect } = require("chai");
 const iPhoneSE = KnownDevices["iPhone SE"];
 
 let page;
 
 describe("Cinema booking site tests, Happy Path", () => {
-  // блок describe, для которого будут работать хуки
 
   beforeEach(async () => {
     page = await browser.newPage();
@@ -98,9 +98,81 @@ describe("Cinema booking site tests, Happy Path", () => {
       "Покажите QR-код нашему контроллеру для подтверждения бронирования."
     );
   }, 10000);
+
+  test("Sad path #2: attempt to re-book an already booked seat", async () => {
+
+    // сперва бронируем конкретное место на конкретном сеансе (т.е. БЕЗ рандома)
+    const targetDay = 2;
+    const targetHall = 3;
+    const targetSeat = 27; // берём место до 100
+    const selDayChosen = "a.page-nav__day_chosen";
+    await selectNdaysFromToday(page, targetDay);
+    await page.waitForSelector(selDayChosen);
+  
+    await selectRandomHallByType(page, "standard", targetHall);
+    const selSeatScheme = "div.buying-scheme";
+    await page.waitForSelector(selSeatScheme);
+  
+  
+    await selectRandomSeat(page, "standard", targetSeat);  
+    const selSeatChosen = "span.buying-scheme__chair_selected";
+    await page.waitForSelector(selSeatChosen);
+    const selBookSeatBtn = "button.acceptin-button";
+    await clickPageElement(page, selBookSeatBtn);
+    const selTicketHeader = "header h2.ticket__check-title";
+    await page.waitForSelector(selTicketHeader);
+  
+    const selQRcodeReceiveBtn =
+      "div.ticket__info-wrapper button.acceptin-button";
+    await clickPageElement(page, selQRcodeReceiveBtn);
+  
+    const selQRticketHeader = "header h2.ticket__check-title";
+    await page.waitForSelector(selQRticketHeader);
+  
+    await page.waitForSelector("div.ticket__info-wrapper img.ticket__info-qr");
+    const ticketHint = await page.$eval(
+      "div.ticket__info-wrapper :nth-child(7)",
+      (element) => element.textContent
+    );
+    expect(ticketHint).toEqual(
+      "Покажите QR-код нашему контроллеру для подтверждения бронирования."
+    );
+  
+    // итак, место забронировано, теперь начинаем творить грязь
+  
+    // возвращаемся на глагне
+    await page.goto("http://qamid.tmweb.ru/client/index.php");
+    // выбираем те же день/фильм/сеанс
+    await selectNdaysFromToday(page, targetDay);
+    await page.waitForSelector(selDayChosen);
+  
+    await selectRandomHallByType(page, "standard", targetHall);
+    await page.waitForSelector(selSeatScheme);
+    // дальше для верности нужно проверить, помечено ли наше место как занятое.
+    // Тут-то и пригодится новый метод
+    const selSeatTaken = "div.buying-scheme__wrapper buying-scheme__chair_taken";
+    const isBookedSeatVisible = await checkIfElemtIsVisible(page, selSeatTaken, 500);
+    expect(isBookedSeatVisible).toBe(true);
+    
+    // как проверить, выдаёт ли кастомная функция прописанную на соответствующий случай ошибку?
+    // expect(() => selectRandomSeat(page, "standard", targetSeat)).toThrow(Error);
+    // когда я делаю так, тест просто падает с обычной ошибкой из кастомной функции, и никакого ассерта с ошибкой не проходит
+    // поэтому придётся написать более тупорылую проверку
+    
+    const selAllStandSeats = "div.buying-scheme__wrapper span.buying-scheme__chair_standart";
+    const arrAllStandSeats = await page.$$(selAllStandSeats);
+    
+    await arrAllStandSeats[targetSeat - 1].click();
+    const selBookButtonBlocked = "button.acceptin-button[disabled=true]";
+    const isInDomBkBtnBlocked = await page.$(selBookButtonBlocked);
+    expect(isInDomBkBtnBlocked).not.toBe(null);
+  
+  }, 10000);
 });
 
-test("Sad path #1: book a standard ticket on mobile device", async () => {
+test("Sad path #1: book a standard ticket on a peculiar mobile device", async () => {
+  // в принципе, этот сценарий всё равно тестирует использование сайта некорректным образом
+  // (слишком экзотическое соотношение сторон у устройства), поэтому я его оставлю
   const page = await browser.newPage();
   await page.emulate(iPhoneSE);
   await page.goto("http://qamid.tmweb.ru/client/index.php");
@@ -134,3 +206,6 @@ test("Sad path #1: book a standard ticket on mobile device", async () => {
 
   expect(isBookButtonHidden).toEqual(true);
 }, 10000);
+
+
+
