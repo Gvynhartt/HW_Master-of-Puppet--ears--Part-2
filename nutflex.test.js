@@ -9,12 +9,11 @@ const {
 } = require("./lib/custom_commands.js");
 
 const { KnownDevices } = require("puppeteer");
-// const { expect } = require("chai");
 const iPhoneSE = KnownDevices["iPhone SE"];
 
 let page;
 
-describe("Cinema booking site tests, Happy Path", () => {
+describe("Cinema booking site tests, any platform", () => {
 
   beforeEach(async () => {
     page = await browser.newPage();
@@ -39,8 +38,10 @@ describe("Cinema booking site tests, Happy Path", () => {
     await selectRandomSeat(page, "standard");
     const selSeatChosen = "span.buying-scheme__chair_selected";
     await page.waitForSelector(selSeatChosen);
+
     const selBookSeatBtn = "button.acceptin-button";
     await clickPageElement(page, selBookSeatBtn);
+
     const selTicketHeader = "header h2.ticket__check-title";
     await page.waitForSelector(selTicketHeader);
 
@@ -99,7 +100,7 @@ describe("Cinema booking site tests, Happy Path", () => {
     );
   }, 10000);
 
-  test("Sad path #2: attempt to re-book an already booked seat", async () => {
+  test("Sad path #1: attempt to re-book an already booked seat", async () => {
 
     // сперва бронируем конкретное место на конкретном сеансе (т.е. БЕЗ рандома)
     const targetDay = 2;
@@ -170,7 +171,7 @@ describe("Cinema booking site tests, Happy Path", () => {
   }, 10000);
 });
 
-test("Sad path #1: book a standard ticket on a peculiar mobile device", async () => {
+test("Sad path #2: book a standard ticket on a peculiar mobile device", async () => {
   // в принципе, этот сценарий всё равно тестирует использование сайта некорректным образом
   // (слишком экзотическое соотношение сторон у устройства), поэтому я его оставлю
   const page = await browser.newPage();
